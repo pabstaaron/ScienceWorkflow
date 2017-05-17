@@ -1,0 +1,29 @@
+The control system listens for user commands on port 8080.
+All commands should be sent as plain text over UDP.
+
+The available commands are split into three catagories: drive commands, pan commands,
+and sense commands. Once a command is received, the associated action is continued until
+another command of the same category is received, with the exception of sense commands,
+which are executed once per request.
+
+Commands that are not listed in the API are ignored.
+
+- Drive commands -
+  DRIVE [theta]
+    Sets the drive direction of the machine, where theta is the direction value in degrees, represented by
+    two bytes or ASCII characters. (zero coresponds to 0 degrees and 0xFFFF coresponds to 359 degrees).
+    This command is analogus to adjusting a steering wheel
+  DRIVE_THROTTLE [drive_speed]:
+    Sets the throttle speed to drive_speed, where drive_speed is a 16-bit unsigned integer, encoded
+    in ASCII (string values will not be be parsed). For example, "DRIVE_THROTTLE A' would correspond
+    to a throttle speed of 65.
+    This command does not override a direction command.
+    This command is analogus to adjusting an accelorator.
+
+- Pan Commands -
+  PAN_DIR [theta]
+  PAN_SPEED [pan_speed]
+
+- Sense Commands -
+  SENSE_LIST
+  SENSE_GET [sense_id]

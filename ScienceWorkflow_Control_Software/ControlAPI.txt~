@@ -1,0 +1,13 @@
+The control system listens for user commands on port 8080.
+All commands should be sent as plain text over UDP.
+
+The available commands are:
+
+DRIVE_FORWARD
+DRIVE_BACKWARD
+TURN_LEFT
+TURN_RIGHT
+PAN_UP
+PAN_DOWN
+PAN_LEFT
+PAN_RIGHT
