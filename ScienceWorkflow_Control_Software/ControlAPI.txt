@@ -9,21 +9,34 @@ which are executed once per request.
 Commands that are not listed in the API are ignored.
 
 - Drive commands -
-  DRIVE [theta]
-    Sets the drive direction of the machine, where theta is the direction value in degrees, represented by
+  DRIVE [theta] [throttle_speed]
+    Sets the drive direction and speed of the machine, where theta is the direction value in degrees, represented by
     two bytes or ASCII characters. (zero coresponds to 0 degrees and 0xFFFF coresponds to 359 degrees).
-    This command is analogus to adjusting a steering wheel
-  DRIVE_THROTTLE [drive_speed]:
-    Sets the throttle speed to drive_speed, where drive_speed is a 16-bit unsigned integer, encoded
-    in ASCII (string values will not be be parsed). For example, "DRIVE_THROTTLE A' would correspond
-    to a throttle speed of 65.
-    This command does not override a direction command.
-    This command is analogus to adjusting an accelorator.
+    Changing theta is analogus to adjusting a steering wheel.
+    throttle_speed is a 16-bit unsigned integer corresponding to the movement speed of the device, encoded in ASCII.
+
+    For example, sending the command "DRIVE [NULL][NULL] [NULL]A" will cause the machine to move forward at 65/4096 the maximum speed.
+    The command "DRIVE [NULL]- [0xFF][0xFF]" will cause the machine to bank left at maximum speed.
 
 - Pan Commands -
-  PAN_DIR [theta]
-  PAN_SPEED [pan_speed]
+  PAN [theta] [pan_speed]
 
 - Sense Commands -
   SENSE_LIST
+    Causes the machine to send a list of available sensors and their associated ids and data return types to the client machine.
+    The list is sent as plain text over UDP with one sensor listing per line.
+    The list is terminated with a NULL character.
+
+    An example response would be:
+
+    accelorometer 0 ushort
+    gyro 1 float float float
+    barometer 2 uint
+    altimeter 3 ulong
+    thermistor 4 short
+    [NULL]
+    
   SENSE_GET [sense_id]
+    Causes the machine to send a sensor sample back to the client machine, where sense_id is the sensor's id
+    code listed by SENSE_LIST. The return value will be of the form listed by SENSE_LIST. For example, if a return type
+    ushort is listed, the SENSE_GET response for that sensor will be 2 bytes in length.
