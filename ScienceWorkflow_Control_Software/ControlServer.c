@@ -14,11 +14,15 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-//#include "more_string.h"
+#include "dictionary.h"
 
 #define BUFSIZE 1024
 #define PORTNO 8080  // Command listening port
 
+// Sensor type associations
+#define USHORT 0
+
+int sockfd;
 struct sockaddr_in server;
 char buf[BUFSIZE]; // Buffer for storing datagrams
 
@@ -27,12 +31,25 @@ void drive(unsigned short theta, unsigned short speed);
 void pan(unsigned short theta, unsigned short speed);
 void sense_list(struct sockaddr_in client);
 void sense_get(char id, struct sockaddr_in client);
+void build_dummy_sensors();
+int send_udp(struct sockaddr_in client, char* buf);
+
+// Represents a sensor and it's associated fields
+typedef struct{
+  char id;
+  char type;
+  char* name;
+} sensor;
+
+sensor* sensors; // Sensor array
 
 int main(int argc, char** argv){
   printf("Starting ScienceWorkflow Control Server\n");
-  
-  int sockfd;
 
+  // Build sensor dictionary
+  sensors = calloc(256, sizeof(sensor)); // Set up a sensor data structure with a direct id mapping
+  build_dummy_sensors();
+  
   // Create the listening socket
   sockfd = socket(AF_INET, SOCK_DGRAM, 0);
   if(sockfd < 0) // ERROR
@@ -56,13 +73,13 @@ int main(int argc, char** argv){
   struct sockaddr_in client;
   int clientlen = sizeof(client);
   struct hostent *hostp;
-  char *hostaddrp;
+  char* hostaddrp;
 
   printf("Listening for commands on port %d\n", PORTNO);
   
   // Listen for datagrams forever...
   while(1){
-    bzero(buf, BUFSIZE); // Clear datagram buffer
+    bzero(buf, BUFSIZE); // Flush datagram buffer
     int n = recvfrom(sockfd, buf, BUFSIZE, 0, (struct sockaddr*)&client, &clientlen); // receive datagram
     if(n < 0)
       error("Error: Bad datagram");
@@ -77,6 +94,20 @@ int main(int argc, char** argv){
 
     handleCommand(buf, client);
   }
+}
+
+void build_dummy_sensors(){
+  sensor* accel = (sensor*)malloc(sizeof(sensor));
+  accel->id = 0;
+  accel->name = "accelorometer";
+  accel->type = USHORT;
+  sensors[0] = *accel;
+
+  sensor* gyro = (sensor*)malloc(sizeof(sensor));
+  gyro->id = 1;
+  gyro->name = "gyroscope";
+  gyro->type = USHORT;
+  sensors[1] = *gyro;
 }
 
 /*
@@ -100,7 +131,7 @@ char** split_cmd(char* cmd, int* numCmds){
   return arr;
 }
 
-// Converts directional arguements encoded in ASCII into their proper numerical formats
+// Converts directional arguments encoded in ASCII into their proper numerical formats
 unsigned short* parse_dir_cmds(char* theta, char* speed){
   unsigned short stheta = theta[0];
   stheta = stheta << 8;
@@ -130,45 +161,140 @@ void handleCommand(char* cmd, struct sockaddr_in client){
   if(scmd[0][clen-1] == '\n')
     scmd[0][clen-1] = 0;
   
-  if(!strcmp(scmd[0], "DRIVE")){
-    if(*numargs != 3)
+  if(!strcmp(scmd[0], "DRIVE")){ // If we've received a drive command
+    if(*numargs != 3) // Ensure instruction is of the expected format
       return;
     short* args = parse_dir_cmds(scmd[1], scmd[2]);
     drive(args[0], args[1]);
     free(args);
   }
-  else if(!strcmp(scmd[0], "PAN")){
+  else if(!strcmp(scmd[0], "PAN")){ // If we've received a PAN command
     if(*numargs != 3)
       return;
     short* args = parse_dir_cmds(scmd[1], scmd[2]);
     pan(args[0], args[1]);
     free(args);
   }
-  else if(!strcmp(scmd[0], "SENSE_LIST")){
-    sense_list(client);
+  else if(!strcmp(scmd[0], "SENSE_LIST")){ // If we've received a SENSE_LIST command
+    //if(*numargs != 1)
+      sense_list(client);
   }
-  else if(!strcmp(scmd[0], "SENSE_GET")){
+  else if(!strcmp(scmd[0], "SENSE_GET")){ // If we've received a SENSE_GET command
     if(*numargs != 2)
       return;
     sense_get(scmd[1][0], client);
   }
 
+  // Cleanup
   free(scmd);
   free(numargs);
 }
 
+/*
+ * Alter PWM parameters parameters to match the specified speed and direction parameters
+ */
 void drive(unsigned short theta, unsigned short speed){
   printf("Received drive command with theta = %d and speed = %d\n", theta, speed);
 }
 
+/*
+ * Alter PWM parameters to begin adjust the camera 
+ */
 void pan(unsigned short theta, unsigned short speed){
   printf("Received pan command with theta = %d and speed = %d\n", theta, speed);
 }
 
-void sense_list(struct sockaddr_in client){
-  printf("Received sense_list command\n");
+char* growString(char* str, char* toAdd, int* avail){
+  int nlen = strlen(toAdd);
+  
+  while(nlen >= *avail){
+    str = realloc(str, *avail + 100);
+    *avail += 100;
+  }
+
+  return str;
 }
 
+char* build_sensor_list(){
+  int avail = 100;
+  char* buf = calloc(avail, sizeof(char));
+  
+  for(int i = 0; i < 256; i++){
+    if(sensors[i].name != NULL){
+      
+      growString(buf, sensors[i].name, &avail);
+      buf = strcat(buf, sensors[i].name);
+      buf = strcat(buf, " ");
+      avail -= strlen(sensors[i].name) + 1;
+      
+      char* id = calloc(2, sizeof(char));
+      sprintf(id, "%d", sensors[i].id);
+      growString(buf, id, &avail) ;
+      buf = strcat(buf, id);
+      buf = strcat(buf, " ");
+      avail -= strlen(id) + 1;
+      
+      char* toAdd;
+      switch(sensors[i].type){
+      case USHORT:
+	toAdd = "ushort";
+	growString(buf, toAdd, &avail); 
+	buf = strcat(buf, toAdd);
+	avail -= strlen(toAdd);
+	break;
+      default:
+	toAdd = "whoops";
+	growString(buf, toAdd, &avail);
+	buf = strcat(buf, toAdd);
+	avail -= strlen(toAdd);
+	break;
+      }
+
+      toAdd = "\n";
+      growString(buf, toAdd, &avail);
+      buf = strcat(buf, toAdd);
+      avail -= 1;
+
+      free(id);
+    }
+  }
+
+  
+  return buf;
+}
+
+/*
+ * Send a list of all available sensors to client as plain text
+ */
+void sense_list(struct sockaddr_in client){
+  printf("Received sense_list command\n");
+
+  char* list = build_sensor_list();
+  printf("%s\n", list);
+
+  send_udp(client, list);
+  
+  free(list);
+}
+
+/*
+ * Send an individual sensor sample back to client
+ */
 void sense_get(char id, struct sockaddr_in client){
   printf("Received a sense get command for device %d\n", id);
+
+  if(sensors[id].name != NULL){
+    // Just send some garbage data for now
+    char* data = malloc(2);
+    send_udp(client, data);
+    free(data);
+  }
+}
+
+/*
+ * Sends a udp packet with buf as a payload
+ */
+int send_udp(struct sockaddr_in client, char* buf){
+  int len = sizeof(client);
+  return sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr*) &client, len);
 }
