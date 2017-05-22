@@ -10,13 +10,13 @@ Commands that are not listed in the API are ignored.
 
 - Drive commands -
   DRIVE [theta] [throttle_speed]
-    Sets the drive direction and speed of the machine, where theta is the direction value in degrees, represented by
-    two bytes or ASCII characters. (zero coresponds to 0 degrees and 0xFFFF coresponds to 359 degrees).
+    Sets the drive direction and speed of the machine, where theta is the direction value in degrees, represented as a
+    string.
     Changing theta is analogus to adjusting a steering wheel.
     throttle_speed is a 16-bit unsigned integer corresponding to the movement speed of the device, encoded in ASCII.
 
-    For example, sending the command "DRIVE [NULL][NULL] [NULL]A" will cause the machine to move forward at 65/4096 the maximum speed.
-    The command "DRIVE [NULL]- [0xFF][0xFF]" will cause the machine to bank left at maximum speed.
+    For example, sending the command "DRIVE 0 65" will cause the machine to move forward at 65/65536 the maximum speed.
+    The command "DRIVE 45 65536" will cause the machine to bank left at maximum speed.
 
 - Pan Commands -
   PAN [theta] [pan_speed]
@@ -34,7 +34,6 @@ Commands that are not listed in the API are ignored.
     barometer 2 uint
     altimeter 3 ulong
     thermistor 4 short
-    [NULL]
     
   SENSE_GET [sense_id]
     Causes the machine to send a sensor sample back to the client machine, where sense_id is the sensor's id

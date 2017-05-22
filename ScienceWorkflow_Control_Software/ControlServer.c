@@ -32,7 +32,7 @@ void pan(unsigned short theta, unsigned short speed);
 void sense_list(struct sockaddr_in client);
 void sense_get(char id, struct sockaddr_in client);
 void build_dummy_sensors();
-int send_udp(struct sockaddr_in client, char* buf);
+int send_udp(struct sockaddr_in client, char* buf2);
 
 // Represents a sensor and it's associated fields
 typedef struct{
@@ -133,18 +133,25 @@ char** split_cmd(char* cmd, int* numCmds){
 
 // Converts directional arguments encoded in ASCII into their proper numerical formats
 unsigned short* parse_dir_cmds(char* theta, char* speed){
-  unsigned short stheta = theta[0];
-  stheta = stheta << 8;
-  stheta = stheta | theta[1];
+  /* unsigned short stheta = theta[0]; */
+  /* stheta = stheta << 8; */
+  /* stheta = stheta | theta[1]; */
   
-  unsigned short sspeed = speed[0];
-  sspeed = sspeed << 8;
-  sspeed = sspeed | speed[1];
+  /* unsigned short sspeed = speed[0]; */
+  /* sspeed = sspeed << 8; */
+  /* sspeed = sspeed | speed[1]; */
 
+  /* unsigned short* arr = malloc(2 * sizeof(unsigned short)); */
+  /* arr[0] = stheta; */
+  /* arr[1] = sspeed; */
+
+  short stheata = atoi(theta);
+  short sspeed = atoi(speed);
+  
   unsigned short* arr = malloc(2 * sizeof(unsigned short));
-  arr[0] = stheta;
-  arr[1] = sspeed;
 
+  arr[0] = stheata;
+  arr[1] = sspeed;
   return arr;
 }
 
@@ -182,7 +189,7 @@ void handleCommand(char* cmd, struct sockaddr_in client){
   else if(!strcmp(scmd[0], "SENSE_GET")){ // If we've received a SENSE_GET command
     if(*numargs != 2)
       return;
-    sense_get(scmd[1][0], client);
+    sense_get(atoi(scmd[1]), client);
   }
 
   // Cleanup
@@ -272,7 +279,8 @@ void sense_list(struct sockaddr_in client){
   char* list = build_sensor_list();
   printf("%s\n", list);
 
-  send_udp(client, list);
+  int bytesSent = send_udp(client, list);
+  printf("Bytes sent: %d\n", bytesSent);
   
   free(list);
 }
@@ -294,7 +302,7 @@ void sense_get(char id, struct sockaddr_in client){
 /*
  * Sends a udp packet with buf as a payload
  */
-int send_udp(struct sockaddr_in client, char* buf){
+int send_udp(struct sockaddr_in client, char* buf2){
   int len = sizeof(client);
-  return sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr*) &client, len);
+  return sendto(sockfd, buf2, strlen(buf2), 0, (struct sockaddr*) &client, len);
 }
