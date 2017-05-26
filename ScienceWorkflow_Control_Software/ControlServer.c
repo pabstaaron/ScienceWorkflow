@@ -5,6 +5,7 @@
  * Author: Aaron Pabst
  */
 
+#include <python2.7/Python.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -33,6 +34,9 @@ void sense_list(struct sockaddr_in client);
 void sense_get(char id, struct sockaddr_in client);
 void build_dummy_sensors();
 int send_udp(struct sockaddr_in client, char* buf2);
+void call_set_pwm_freq(int freq);
+void call_set_pwm(int channel, int on, int off);
+void call_set_all_pwm(int on, int off);
 
 // Represents a sensor and it's associated fields
 typedef struct{
@@ -43,9 +47,62 @@ typedef struct{
 
 sensor* sensors; // Sensor array
 
+// Python execution variables
+const char* adafruit_pwm_lib = "PCA9685"; // Need to make sure this is on python path
+PyObject* soft_reset; // Resets the PWM board, no args
+PyObject* set_pwm_freq; // Sets the PWM frequency, freq_hz
+PyObject* set_pwm; // Sets a single PWM channel, channel, on, off
+PyObject* set_all_pwm; // Sets all PWM channels, on, off
+
+const char* soft_reset_name = "software_reset";
+const char* set_pwm_freq_name = "set_pwm_freq";
+const char* set_pwm_name = "set_pwm";
+const char* set_all_pwm_name = "set_all_pwm";
+
+void error(char* msg){
+  perror(msg);
+  exit(1);
+}
+
 int main(int argc, char** argv){
   printf("Starting ScienceWorkflow Control Server\n");
+  
+  // Start up the python interpreter 
+  Py_Initialize();
 
+  PyObject* p_name, *pModule;
+  
+  p_name = PyString_FromString(adafruit_pwm_lib);
+  pModule = PyImport_Import(p_name);
+  //Py_DECREF(p_name); // We're done with p_name, so release it.
+
+  if(pModule == NULL){
+    error("Module undefined! Is the PCA9685 library on the Python path?");
+  }
+
+  /* PyObject* init = PyObject_GetAttrString(pModule, "__init__"); */
+
+  /* if(init == NULL) */
+  /*   error("Couldn't find python defintition for function init."); */
+
+  // Make an instance of the PCA9685 module
+  PyObject* PCA9685 = PyObject_GetAttrString(pModule, "PCA9685");
+  if(!PyCallable_Check(PCA9685))
+    error("Can't call PCA9685");
+  
+  PyObject* instance = PyObject_CallObject(PCA9685, NULL);
+  if(instance == NULL)
+    error("Could not instantiate PCA9685 module!");
+  
+  // Set up Python function refs
+  soft_reset = PyObject_GetAttrString(pModule, soft_reset_name);
+  set_pwm_freq = PyObject_GetAttrString(pModule, set_pwm_freq_name);
+  set_pwm = PyObject_GetAttrString(pModule, set_pwm_name);
+  set_all_pwm = PyObject_GetAttrString(pModule, set_all_pwm_name);
+
+  // Initilize all PWM channels
+  call_set_all_pwm(0, 0);
+  
   // Build sensor dictionary
   sensors = calloc(256, sizeof(sensor)); // Set up a sensor data structure with a direct id mapping
   build_dummy_sensors();
@@ -67,8 +124,9 @@ int main(int argc, char** argv){
 
   // Bind server address to listening socket
   if (bind(sockfd, (struct sockaddr *) &server, 
-	   sizeof(server)) < 0) 
-    error("ERROR: Could not bind IP address %x to socket.", server);
+	   sizeof(server)) < 0){
+    error("ERROR: Could not bind IP address to socket.");
+  }
 
   struct sockaddr_in client;
   int clientlen = sizeof(client);
@@ -94,6 +152,8 @@ int main(int argc, char** argv){
 
     handleCommand(buf, client);
   }
+
+  Py_Finalize();
 }
 
 void build_dummy_sensors(){
@@ -133,18 +193,6 @@ char** split_cmd(char* cmd, int* numCmds){
 
 // Converts directional arguments encoded in ASCII into their proper numerical formats
 unsigned short* parse_dir_cmds(char* theta, char* speed){
-  /* unsigned short stheta = theta[0]; */
-  /* stheta = stheta << 8; */
-  /* stheta = stheta | theta[1]; */
-  
-  /* unsigned short sspeed = speed[0]; */
-  /* sspeed = sspeed << 8; */
-  /* sspeed = sspeed | speed[1]; */
-
-  /* unsigned short* arr = malloc(2 * sizeof(unsigned short)); */
-  /* arr[0] = stheta; */
-  /* arr[1] = sspeed; */
-
   short stheata = atoi(theta);
   short sspeed = atoi(speed);
   
@@ -305,4 +353,64 @@ void sense_get(char id, struct sockaddr_in client){
 int send_udp(struct sockaddr_in client, char* buf2){
   int len = sizeof(client);
   return sendto(sockfd, buf2, strlen(buf2), 0, (struct sockaddr*) &client, len);
+}
+
+// Adafruit PWM Wrappers
+// https://learn.adafruit.com/adafruit-16-channel-servo-driver-with-raspberry-pi/library-reference
+
+/*
+ * Sets the PWM Frequency.
+ * freq: an integer value, in Hz, from 40 to 1000 
+ */
+void call_set_pwm_freq(int freq){
+  PyObject *pargs = PyTuple_New(1);
+  PyObject *pint = PyInt_FromLong(freq);
+  PyTuple_SetItem(pargs, 0, pint);
+
+  PyObject_CallObject(set_pwm_freq, pargs);
+
+  // Cleanup
+  Py_DECREF(pargs);
+  Py_DECREF(pint);
+}
+
+/*
+ * Sets the on/off interval on channel.
+ * channel: The channel to be updated. An integer between 0 and 15
+ * on: The count value to activate the pulse. An integer between 0 and 4095.
+ * off: The count value to deactivate the pulse. An integer between 0 and 4095
+ */
+void call_set_pwm(int channel, int on, int off){
+  PyObject *pargs = PyTuple_New(3);
+
+  PyObject *pchannel = PyInt_FromLong(channel);
+  PyObject *pon = PyInt_FromLong(on);
+  PyObject *poff = PyInt_FromLong(off);
+
+  PyTuple_SetItem(pargs, 0, pchannel);
+  PyTuple_SetItem(pargs, 1, pon);
+  PyTuple_SetItem(pargs, 2, poff);
+
+  PyObject_CallObject(set_pwm, pargs);
+
+  Py_DECREF(pargs);
+  Py_DECREF(pchannel);
+  Py_DECREF(pon);
+  Py_DECREF(poff);
+}
+
+void call_set_all_pwm(int on, int off){
+  PyObject *pargs = PyTuple_New(2);
+
+  PyObject *pon = PyInt_FromLong(on);
+  PyObject *poff = PyInt_FromLong(off);
+
+  PyTuple_SetItem(pargs, 0, pon);
+  PyTuple_SetItem(pargs, 1, poff);
+
+  PyObject_CallObject(set_pwm, pargs);
+
+  Py_DECREF(pargs);
+  Py_DECREF(pon);
+  Py_DECREF(poff);
 }
