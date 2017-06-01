@@ -15,13 +15,23 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include "dictionary.h"
 
 #define BUFSIZE 1024
 #define PORTNO 8080  // Command listening port
 
 // Sensor type associations
 #define USHORT 0
+
+#define PWM_FREQ 60
+#define SERVO_MIN 150
+#define SERVO_MAX 600
+
+#define MAX_SPEED 4095
+
+#define FRNT_LEFT 0
+#define FRNT_RIGHT 1
+#define BCK_LEFT 2 
+#define BCK_RIGHT 3
 
 int sockfd;
 struct sockaddr_in server;
@@ -48,7 +58,8 @@ typedef struct{
 sensor* sensors; // Sensor array
 
 // Python execution variables
-const char* adafruit_pwm_lib = "PCA9685"; // Need to make sure this is on python path
+const char* adafruit_pwm_lib = "Adafruit_PCA9685"; // Need to make sure this is on python path
+const char* pwm_obj_name = "PCA9685";
 PyObject* soft_reset; // Resets the PWM board, no args
 PyObject* set_pwm_freq; // Sets the PWM frequency, freq_hz
 PyObject* set_pwm; // Sets a single PWM channel, channel, on, off
@@ -86,21 +97,33 @@ int main(int argc, char** argv){
   /*   error("Couldn't find python defintition for function init."); */
 
   // Make an instance of the PCA9685 module
-  PyObject* PCA9685 = PyObject_GetAttrString(pModule, "PCA9685");
-  if(!PyCallable_Check(PCA9685))
+  PyObject* PCA9685 = PyObject_GetAttrString(pModule, pwm_obj_name);
+  if(!PyCallable_Check(PCA9685)){
+    if(PyErr_Occurred())
+      PyErr_PrintEx(1);
     error("Can't call PCA9685");
+  }
   
   PyObject* instance = PyObject_CallObject(PCA9685, NULL);
-  if(instance == NULL)
+  if(instance == NULL){
+    if(PyErr_Occurred())
+      PyErr_PrintEx(1);
     error("Could not instantiate PCA9685 module!");
+  }
   
   // Set up Python function refs
-  soft_reset = PyObject_GetAttrString(pModule, soft_reset_name);
-  set_pwm_freq = PyObject_GetAttrString(pModule, set_pwm_freq_name);
-  set_pwm = PyObject_GetAttrString(pModule, set_pwm_name);
-  set_all_pwm = PyObject_GetAttrString(pModule, set_all_pwm_name);
+  //soft_reset = PyObject_GetAttrString(instance, soft_reset_name);
+  set_pwm_freq = PyObject_GetAttrString(instance, set_pwm_freq_name);
+  set_pwm = PyObject_GetAttrString(instance, set_pwm_name);
+  set_all_pwm = PyObject_GetAttrString(instance, set_all_pwm_name);
+
+  if(PyErr_Occurred()){
+    PyErr_PrintEx(1);
+    error("Python error occured.");
+  }
 
   // Initilize all PWM channels
+  call_set_pwm_freq(PWM_FREQ);
   call_set_all_pwm(0, 0);
   
   // Build sensor dictionary
@@ -250,6 +273,7 @@ void handleCommand(char* cmd, struct sockaddr_in client){
  */
 void drive(unsigned short theta, unsigned short speed){
   printf("Received drive command with theta = %d and speed = %d\n", theta, speed);
+  call_set_pwm(FRNT_LEFT, 0, speed);
 }
 
 /*
@@ -274,7 +298,8 @@ char* build_sensor_list(){
   int avail = 100;
   char* buf = calloc(avail, sizeof(char));
   
-  for(int i = 0; i < 256; i++){
+  int i;
+  for(i = 0; i < 256; i++){
     if(sensors[i].name != NULL){
       
       growString(buf, sensors[i].name, &avail);
