@@ -23,11 +23,16 @@
 #define USHORT 0
 
 #define PWM_FREQ 60
-#define SERVO_MIN 150
-#define SERVO_MAX 600
+#define SERVO_MIN 5 // Fastest Clockwise direction
+#define SERVO_MAX 785 // Fastest counter-clockwise direction
+
+// Directional servo extremes
+#define DIR_SERVO_MIN 0
+#define DIR_SERVO_MAX 360
 
 #define MAX_SPEED 4095
 
+// Wheel to channel mappings
 #define FRNT_LEFT 0
 #define FRNT_RIGHT 1
 #define BCK_LEFT 2 
@@ -47,6 +52,8 @@ int send_udp(struct sockaddr_in client, char* buf2);
 void call_set_pwm_freq(int freq);
 void call_set_pwm(int channel, int on, int off);
 void call_set_all_pwm(int on, int off);
+long map(long val, long fromLow, long fromHigh,long toLow, long toHigh);
+void servoWrite(int channel, int value);
 
 // Represents a sensor and it's associated fields
 typedef struct{
@@ -202,7 +209,7 @@ char** split_cmd(char* cmd, int* numCmds){
   int i = 0;
   char* pch = strtok(cmd, " ");
   while(pch != NULL){
-    if(i > 2)
+    if(i > 3)
       return arr;
     
     arr[i] = pch;
@@ -262,6 +269,20 @@ void handleCommand(char* cmd, struct sockaddr_in client){
       return;
     sense_get(atoi(scmd[1]), client);
   }
+  else if(!strcmp(scmd[0], "PWM")){ // PWM [CH] [START] [STOP]
+    //if(*numargs != 4)
+    //return;
+      printf("Received PWM Command!\n");
+      int ch = atoi(scmd[1]);
+      short start = atoi(scmd[2]);
+      short end = atoi(scmd[3]);
+      call_set_pwm(ch, start, end);
+  }
+  else if(!strcmp(scmd[0], "WRITE")){
+    int ch = atoi(scmd[1]);
+    int pos = atoi(scmd[2]);
+    servoWrite(ch, pos);
+  }
 
   // Cleanup
   free(scmd);
@@ -273,7 +294,88 @@ void handleCommand(char* cmd, struct sockaddr_in client){
  */
 void drive(unsigned short theta, unsigned short speed){
   printf("Received drive command with theta = %d and speed = %d\n", theta, speed);
-  call_set_pwm(FRNT_LEFT, 0, speed);
+  //call_set_pwm(FRNT_LEFT, 0, speed);
+ 
+  int newSpeed; 
+
+  if(speed == 0){
+    servoWrite(FRNT_LEFT, 180);
+    servoWrite(FRNT_RIGHT, 180);
+    servoWrite(BCK_LEFT, 180);
+    servoWrite(BCK_RIGHT, 180);
+    return;
+  }
+
+  if(theta == 0){
+    int s = map(speed, 0, 4096, 180, 0);
+    servoWrite(FRNT_LEFT, s);
+    servoWrite(FRNT_RIGHT, s);
+    servoWrite(BCK_LEFT, s);
+    servoWrite(BCK_RIGHT, s);
+    return;
+  }
+
+  if(theta == 180){
+    int s = map(speed, 0, 4096,180, 360);
+    servoWrite(FRNT_LEFT, s);
+    servoWrite(FRNT_RIGHT, s);
+    servoWrite(BCK_LEFT, s);
+    servoWrite(BCK_RIGHT, s);
+    return;
+  }
+
+  if((theta >= 0 && theta <= 90) || (theta >= 270 && theta <= 360)){ // Forward
+    newSpeed = map(speed, 0, 4096, 0, 180);
+    if(theta >= 0 && theta <= 90){ // Left
+      float scale = (float)theta / 90.0;
+      int leftSpeed = (int)(scale * speed);
+      int rightSpeed = speed;
+      leftSpeed = map(leftSpeed, 0, 4096, 180, 0);
+      rightSpeed = map(rightSpeed, 0, 4096, 180, 0);
+      servoWrite(FRNT_LEFT, leftSpeed);
+      servoWrite(FRNT_RIGHT, rightSpeed);
+      servoWrite(BCK_LEFT, leftSpeed);
+      servoWrite(BCK_RIGHT, rightSpeed);
+    }
+    else{ // Right
+      float scale = (float)(theta - 270) / 90.0;
+      int rightSpeed = (int)(scale * speed);
+      int leftSpeed = speed;
+      rightSpeed = map(rightSpeed, 0, 4096, 180, 0);
+      leftSpeed = map(leftSpeed, 0, 4096, 180, 0);
+      servoWrite(FRNT_LEFT, leftSpeed);
+      servoWrite(FRNT_RIGHT, rightSpeed);
+      servoWrite(BCK_LEFT, leftSpeed);
+      servoWrite(BCK_RIGHT, rightSpeed);
+    }
+  }
+  else{ // backwards
+    //newSpeed = map(speed, 0, 4096, 180, 360);
+    if(theta > 90 || theta <= 180){ // Left
+      float scale = (float)(theta-90) / 90.0;
+      int leftSpeed = (int)(scale * speed);
+      int rightSpeed = speed;
+      leftSpeed = map(leftSpeed, 0, 4096, 180, 360);
+      rightSpeed = map(rightSpeed, 0, 4096, 180, 360);
+      servoWrite(FRNT_LEFT, leftSpeed);
+      servoWrite(FRNT_RIGHT, rightSpeed);
+      servoWrite(BCK_LEFT, leftSpeed);
+      servoWrite(BCK_RIGHT, rightSpeed);
+    }
+    else{ // Right
+      float scale = (float)(theta-180) / 90.0;
+      int rightSpeed = (int)(scale * speed);
+      int leftSpeed = speed;
+      leftSpeed = map(leftSpeed, 0, 4096, 180, 360);
+      rightSpeed = map(rightSpeed, 0, 4096, 180, 360);
+      servoWrite(FRNT_LEFT, leftSpeed);
+      servoWrite(FRNT_RIGHT, rightSpeed);
+      servoWrite(BCK_LEFT, leftSpeed);
+      servoWrite(BCK_RIGHT, rightSpeed);
+    }
+  }
+
+  int s = map(speed, 0, 4096, 180, 0);
 }
 
 /*
@@ -438,4 +540,29 @@ void call_set_all_pwm(int on, int off){
   Py_DECREF(pargs);
   Py_DECREF(pon);
   Py_DECREF(poff);
+}
+
+/*
+ * Maps a value from one number range onto another
+ */
+long map(long x, long in_min, long in_max, long out_min, long out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+/*
+ * Similar to Arduino's Servo.write()
+ * Takes in a positional arguement between DIR_SERVO_MIN and DIR_SERVO_MAX degrees.
+ * Where DIR_SERVO_MIN is the rightmost servo position or the maximum angular velocity.
+ * DIR_SERVO_MAX is the leftmost position or the minimum angular velocity.
+ */
+void servoWrite(int channel, int value){
+  if(value < DIR_SERVO_MIN)
+    value = DIR_SERVO_MIN;
+  if(value > DIR_SERVO_MAX)
+    value = 180;
+
+  int pwm = map(value, DIR_SERVO_MIN, DIR_SERVO_MAX, SERVO_MIN, SERVO_MAX);
+
+  call_set_pwm(channel, 0, pwm);
 }
