@@ -15,6 +15,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/mman.h>
+#include <signal.h>
+#include <errno.h>
 
 #define BUFSIZE 1024
 #define PORTNO 8080  // Command listening port
@@ -22,13 +25,16 @@
 // Sensor type associations
 #define USHORT 0
 
-#define PWM_FREQ 60
-#define SERVO_MIN 5 // Fastest Clockwise direction
-#define SERVO_MAX 785 // Fastest counter-clockwise direction
+#define PWM_FREQ 60 
+#define SERVO_MIN 150 // Fastest Clockwise direction
+#define SERVO_MAX 600 // Fastest counter-clockwise direction
 
 // Directional servo extremes
 #define DIR_SERVO_MIN 0
 #define DIR_SERVO_MAX 360
+
+#define LIN_SERVO_MAX 600 // 2 ms mark
+#define LIN_SERVO_MIN 150 // 1 ms mark
 
 #define MAX_SPEED 4095
 
@@ -38,13 +44,19 @@
 #define BCK_LEFT 2 
 #define BCK_RIGHT 3
 
+// Pan/tilt mappings
+#define PT_HOR 4 // Horizontal adjustment servo
+#define PT_VERT 6 // Vertical adjustment servo
+
+#define MOTOR_DELAY 125000000 // The number of nanoseconds to wait between motor adjustments
+
 int sockfd;
 struct sockaddr_in server;
 char buf[BUFSIZE]; // Buffer for storing datagrams
 
 void handleCommand(char* cmd, struct sockaddr_in client);
 void drive(unsigned short theta, unsigned short speed);
-void pan(unsigned short theta, unsigned short speed);
+void pan(unsigned short x, unsigned short y);
 void sense_list(struct sockaddr_in client);
 void sense_get(char id, struct sockaddr_in client);
 void build_dummy_sensors();
@@ -54,6 +66,8 @@ void call_set_pwm(int channel, int on, int off);
 void call_set_all_pwm(int on, int off);
 long map(long val, long fromLow, long fromHigh,long toLow, long toHigh);
 void servoWrite(int channel, int value);
+void linearWrite(int channel, int value);
+void delayNano(int nanoseconds);
 
 // Represents a sensor and it's associated fields
 typedef struct{
@@ -67,19 +81,27 @@ sensor* sensors; // Sensor array
 // Python execution variables
 const char* adafruit_pwm_lib = "Adafruit_PCA9685"; // Need to make sure this is on python path
 const char* pwm_obj_name = "PCA9685";
-PyObject* soft_reset; // Resets the PWM board, no args
-PyObject* set_pwm_freq; // Sets the PWM frequency, freq_hz
-PyObject* set_pwm; // Sets a single PWM channel, channel, on, off
-PyObject* set_all_pwm; // Sets all PWM channels, on, off
+//PyObject* soft_reset; // Resets the PWM board, no args
+//PyObject* set_pwm_freq; // Sets the PWM frequency, freq_hz
+//PyObject* set_pwm; // Sets a single PWM channel, channel, on, off
+//PyObject* set_all_pwm; // Sets all PWM channels, on, off
 
 const char* soft_reset_name = "software_reset";
 const char* set_pwm_freq_name = "set_pwm_freq";
 const char* set_pwm_name = "set_pwm";
 const char* set_all_pwm_name = "set_all_pwm";
 
+PyObject* instance;
+
 void error(char* msg){
   perror(msg);
   exit(1);
+}
+
+static void segHandler(int sig, siginfo_t *si, void* ptr){
+  if(PyErr_Occurred())
+    PyErr_PrintEx(1);
+  error("Segmentation Fault");
 }
 
 int main(int argc, char** argv){
@@ -88,15 +110,25 @@ int main(int argc, char** argv){
   // Start up the python interpreter 
   Py_Initialize();
 
+  // Set up error handling
+  struct sigaction sa;
+  sa.sa_flags = SA_SIGINFO;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_sigaction = segHandler;
+  if (sigaction(SIGSEGV, &sa, NULL) == -1)
+    error("Couldn't install error handler");
+  
+
+  // Register PWM library
   PyObject* p_name, *pModule;
   
   p_name = PyString_FromString(adafruit_pwm_lib);
   pModule = PyImport_Import(p_name);
-  //Py_DECREF(p_name); // We're done with p_name, so release it.
+  Py_DECREF(p_name); // We're done with p_name, so release it.
 
   if(pModule == NULL){
     error("Module undefined! Is the PCA9685 library on the Python path?");
-  }
+    }
 
   /* PyObject* init = PyObject_GetAttrString(pModule, "__init__"); */
 
@@ -111,27 +143,31 @@ int main(int argc, char** argv){
     error("Can't call PCA9685");
   }
   
-  PyObject* instance = PyObject_CallObject(PCA9685, NULL);
-  if(instance == NULL){
+  
+  instance = PyObject_CallObject(PCA9685, NULL);
+    if(instance == NULL){
     if(PyErr_Occurred())
       PyErr_PrintEx(1);
     error("Could not instantiate PCA9685 module!");
-  }
+    }
+
   
   // Set up Python function refs
   //soft_reset = PyObject_GetAttrString(instance, soft_reset_name);
-  set_pwm_freq = PyObject_GetAttrString(instance, set_pwm_freq_name);
-  set_pwm = PyObject_GetAttrString(instance, set_pwm_name);
-  set_all_pwm = PyObject_GetAttrString(instance, set_all_pwm_name);
+  //set_pwm_freq = PyObject_GetAttrString(instance, set_pwm_freq_name);
+  //set_pwm = PyObject_GetAttrString(instance, set_pwm_name);
+  //set_all_pwm = PyObject_GetAttrString(instance, set_all_pwm_name);
 
   if(PyErr_Occurred()){
     PyErr_PrintEx(1);
     error("Python error occured.");
-  }
+    }
 
   // Initilize all PWM channels
   call_set_pwm_freq(PWM_FREQ);
-  call_set_all_pwm(0, 0);
+
+  pan(90, 90); // set camera straight forward
+  drive(0, 0); 
   
   // Build sensor dictionary
   sensors = calloc(256, sizeof(sensor)); // Set up a sensor data structure with a direct id mapping
@@ -183,7 +219,7 @@ int main(int argc, char** argv){
     handleCommand(buf, client);
   }
 
-  Py_Finalize();
+  // Py_Finalize();
 }
 
 void build_dummy_sensors(){
@@ -318,8 +354,11 @@ void drive(unsigned short theta, unsigned short speed){
   if(theta == 180){
     int s = map(speed, 0, 4096,180, 360);
     servoWrite(FRNT_LEFT, s);
+    delayNano(MOTOR_DELAY);
     servoWrite(FRNT_RIGHT, s);
+    delayNano(MOTOR_DELAY);
     servoWrite(BCK_LEFT, s);
+    delayNano(MOTOR_DELAY);
     servoWrite(BCK_RIGHT, s);
     return;
   }
@@ -374,15 +413,16 @@ void drive(unsigned short theta, unsigned short speed){
       servoWrite(BCK_RIGHT, rightSpeed);
     }
   }
-
-  int s = map(speed, 0, 4096, 180, 0);
 }
 
 /*
  * Alter PWM parameters to begin adjust the camera 
+ * x and y should be an integer between 0 and 180
  */
-void pan(unsigned short theta, unsigned short speed){
-  printf("Received pan command with theta = %d and speed = %d\n", theta, speed);
+void pan(unsigned short x, unsigned short y){
+  printf("Received pan command with x = %d and y =  %d\n", x, y);
+  linearWrite(PT_HOR, x);
+  linearWrite(PT_VERT, y);
 }
 
 char* growString(char* str, char* toAdd, int* avail){
@@ -490,6 +530,35 @@ int send_udp(struct sockaddr_in client, char* buf2){
  * freq: an integer value, in Hz, from 40 to 1000 
  */
 void call_set_pwm_freq(int freq){
+  //Py_Initialize();
+
+  // Register PWM library
+  /*PyObject* p_name, *pModule;
+
+  p_name = PyString_FromString(adafruit_pwm_lib);
+  pModule = PyImport_Import(p_name);
+
+  if(pModule == NULL){
+    error("Module undefined! Is the PCA9685 library on the Python path?");
+  }
+  
+  // Make an instance of the PCA9685 module
+  PyObject* PCA9685 = PyObject_GetAttrString(pModule, pwm_obj_name);
+  if(!PyCallable_Check(PCA9685)){
+    if(PyErr_Occurred())
+      PyErr_PrintEx(1);
+    error("Can't call PCA9685");
+  } 
+                                                                                                        
+   PyObject* instance = PyObject_CallObject(PCA9685, NULL);                                                
+   if(instance == NULL){                                                                                   
+     if(PyErr_Occurred())
+       PyErr_PrintEx(1);                                                                                  
+     error("Could not instantiate PCA9685 module!");                                                      
+     }                                                                                    */                  
+
+  PyObject* set_pwm_freq = PyObject_GetAttrString(instance, set_pwm_freq_name);
+  
   PyObject *pargs = PyTuple_New(1);
   PyObject *pint = PyInt_FromLong(freq);
   PyTuple_SetItem(pargs, 0, pint);
@@ -497,8 +566,15 @@ void call_set_pwm_freq(int freq){
   PyObject_CallObject(set_pwm_freq, pargs);
 
   // Cleanup
+  //Py_DECREF(p_name);
+  //Py_DECREF(pModule);
+  //Py_DECREF(PCA9685);
+  //Py_DECREF(instance);
+  Py_DECREF(set_pwm_freq);
   Py_DECREF(pargs);
-  Py_DECREF(pint);
+  //Py_DECREF(pint);
+ 
+  //Py_Finalize();
 }
 
 /*
@@ -508,6 +584,37 @@ void call_set_pwm_freq(int freq){
  * off: The count value to deactivate the pulse. An integer between 0 and 4095
  */
 void call_set_pwm(int channel, int on, int off){
+  
+  //Py_Initialize();
+
+  // Register PWM library
+  /*PyObject* p_name, *pModule;
+
+  p_name = PyString_FromString(adafruit_pwm_lib);
+  pModule = PyImport_Import(p_name);
+
+  if(pModule == NULL){
+    error("Module undefined! Is the PCA9685 library on the Python path?");
+  }
+  
+  
+  // Make an instance of the PCA9685 module
+  PyObject* PCA9685 = PyObject_GetAttrString(pModule, pwm_obj_name);
+  if(!PyCallable_Check(PCA9685)){
+    if(PyErr_Occurred())
+      PyErr_PrintEx(1);
+    error("Can't call PCA9685");
+  }
+
+  PyObject* instance = PyObject_CallObject(PCA9685, NULL);
+  if(instance == NULL){
+    if(PyErr_Occurred())
+      PyErr_PrintEx(1);
+    error("Could not instantiate PCA9685 module!");
+    }*/
+  
+  PyObject* set_pwm = PyObject_GetAttrString(instance, set_pwm_name);
+  
   PyObject *pargs = PyTuple_New(3);
 
   PyObject *pchannel = PyInt_FromLong(channel);
@@ -520,13 +627,49 @@ void call_set_pwm(int channel, int on, int off){
 
   PyObject_CallObject(set_pwm, pargs);
 
+  //Py_DECREF(p_name);
+  //Py_DECREF(pModule);
+  //Py_DECREF(PCA9685);
+  //Py_DECREF(instance);
+  Py_DECREF(set_pwm);
   Py_DECREF(pargs);
-  Py_DECREF(pchannel);
-  Py_DECREF(pon);
-  Py_DECREF(poff);
+  //Py_DECREF(pchannel);
+  //Py_DECREF(pon);
+  //Py_DECREF(poff);
+
+  //Py_Finalize();
 }
 
 void call_set_all_pwm(int on, int off){
+  //Py_Initialize();
+
+  // Register PWM library
+  /*PyObject* p_name, *pModule;
+
+  p_name = PyString_FromString(adafruit_pwm_lib);
+  pModule = PyImport_Import(p_name);
+
+  if(pModule == NULL){
+    error("Module undefined! Is the PCA9685 library on the Python path?");
+  }
+  
+  // Make an instance of the PCA9685 module
+  PyObject* PCA9685 = PyObject_GetAttrString(pModule, pwm_obj_name);
+  if(!PyCallable_Check(PCA9685)){
+    if(PyErr_Occurred())
+      PyErr_PrintEx(1);
+    error("Can't call PCA9685");
+  }
+
+  PyObject* instance = PyObject_CallObject(PCA9685, NULL);
+  if(instance == NULL){
+    if(PyErr_Occurred())
+      PyErr_PrintEx(1);
+    error("Could not instantiate PCA9685 module!");
+    }*/
+
+  PyObject* set_all_pwm = PyObject_GetAttrString(instance, set_all_pwm_name);
+  
   PyObject *pargs = PyTuple_New(2);
 
   PyObject *pon = PyInt_FromLong(on);
@@ -535,11 +678,18 @@ void call_set_all_pwm(int on, int off){
   PyTuple_SetItem(pargs, 0, pon);
   PyTuple_SetItem(pargs, 1, poff);
 
-  PyObject_CallObject(set_pwm, pargs);
+  PyObject_CallObject(set_all_pwm, pargs);
 
+  //Py_DECREF(p_name);
+  //Py_DECREF(pModule);
+  //Py_DECREF(PCA9685);
+  //Py_DECREF(instance);
+  Py_DECREF(set_all_pwm);
   Py_DECREF(pargs);
-  Py_DECREF(pon);
-  Py_DECREF(poff);
+  //Py_DECREF(pon);
+  //Py_DECREF(poff);
+
+  //Py_Finalize();
 }
 
 /*
@@ -560,9 +710,40 @@ void servoWrite(int channel, int value){
   if(value < DIR_SERVO_MIN)
     value = DIR_SERVO_MIN;
   if(value > DIR_SERVO_MAX)
-    value = 180;
+    value = DIR_SERVO_MAX;
 
   int pwm = map(value, DIR_SERVO_MIN, DIR_SERVO_MAX, SERVO_MIN, SERVO_MAX);
 
   call_set_pwm(channel, 0, pwm);
+
+  //delayNano(999999999);
+}
+
+void linearWrite(int channel, int value){
+  if(value < 0)
+    value = 0;
+  if(value > 180)
+    value = 180;
+
+  int pwm = map(value, 0, 180, LIN_SERVO_MIN, LIN_SERVO_MAX);
+
+  call_set_pwm(channel, 0, pwm);
+
+  //delayNano(MOTOR_DELAY);
+}
+
+/*
+ * Locks up the main thread for a given number of nanoseconds
+ */
+void delayNano(int nanoseconds){
+  struct timespec* reqTime = malloc(sizeof(struct timespec)); // Allocate a timespec object
+  reqTime->tv_sec = 0;
+  reqTime->tv_nsec = nanoseconds;
+
+  struct timespec* remTime = malloc(sizeof(struct timespec)); // dummy pointer
+
+  nanosleep(reqTime, remTime);
+
+  free(reqTime);
+  free(remTime);
 }
