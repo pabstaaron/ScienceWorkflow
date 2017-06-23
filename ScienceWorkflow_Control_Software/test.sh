@@ -1,0 +1,202 @@
+#!/bin/  [sense_id]
+bash
+
+## Runs a self test on the Science Workflow robot.
+## Spins up the control server and then excites it with commands to spin each of the wheels
+## and pan the camera
+## Ends with a rigourous stress test
+
+WDELAY=0.05
+
+echo "Initiating ScienceWorkflow Self Test..."
+
+# Spin up the control server on it's own process
+make # Build the server, just in case
+./ControlServer &
+sleep 1
+echo "Server started..."
+
+echo "--Beginning individual wheel tests--"
+echo "Sweeping left front wheel"
+echo "     Sweeping clockwise"
+for i in {180..0}
+do
+    echo WRITE 0 $i > /dev/udp/0.0.0.0/8080
+    sleep $WDELAY
+done
+
+sleep 1
+
+echo "     Sweeping counter-clockwise"
+for i in {180..360}
+do
+    echo WRITE 0 $i > /dev/udp/0.0.0.0/8080
+    sleep $WDELAY
+done
+
+echo DRIVE 0 0 > /dev/udp/0.0.0.0/8080
+sleep 1
+
+echo "Sweeping right front wheel"
+echo "     Sweeping clockwise"
+for i in {180..0}
+do
+    echo WRITE 1 $i > /dev/udp/0.0.0.0/8080
+    sleep $WDELAY
+done
+
+sleep 1
+
+echo "     Sweeping counter-clockwise"
+for i in {180..360}
+do
+    echo WRITE 1 $i > /dev/udp/0.0.0.0/8080
+    sleep $WDELAY
+done
+
+echo DRIVE 0 0 > /dev/udp/0.0.0.0/8080
+sleep 1
+
+echo "Sweeping left back wheel"
+echo "     Sweeping clockwise"
+for i in {180..0}
+do
+    echo WRITE 2 $i > /dev/udp/0.0.0.0/8080
+    sleep $WDELAY
+done
+
+sleep 1
+
+echo "     Sweeping counter-clockwise"
+for i in {180..360}
+do
+    echo WRITE 2 $i > /dev/udp/0.0.0.0/8080
+  
+    sleep $WDELAY
+done
+
+echo DRIVE 0 0 > /dev/udp/0.0.0.0/8080
+sleep 1
+
+echo "Sweeping right back wheel"
+echo "     Sweeping clockwise"
+for i in {180..0}
+do
+    echo WRITE 3 $i > /dev/udp/0.0.0.0/8080
+    sleep $WDELAY
+done
+
+sleep 1
+
+echo "     Sweeping counter-clockwise"
+for i in {180..360}
+do
+    echo WRITE 3 $i > /dev/udp/0.0.0.0/8080
+    sleep $WDELAY
+done
+
+echo WRITE 3 0 > /dev/udp/0.0.0.0/8080
+
+echo "Indiviual wheel tests complete"
+echo ""
+sleep 0.5
+
+echo "--Beginning main drive system test--"
+
+echo "Driving forward..."
+for i in {0..4096}
+do
+    echo DRIVE 0 $i > /dev/udp/0.0.0.0/8080
+    sleep 0.001
+done
+
+echo "Full Speed attained. Holding for 10 seconds..."
+sleep 10
+
+echo DRIVE 0 0 > /dev/udp/0.0.0.0/8080
+
+#echo "Driving Backward..."
+#for i in {0..4096}
+#do
+#    echo DRIVE 180 $i > /dev/udp/0.0.0.0/8080
+#    sleep 0.01
+#done
+
+#echo "Full Speed attained. Holding for 10 seconds..."
+#sleep 10
+
+#echo DRIVE 0 0 > /dev/udp/0.0.0.0/8080
+
+echo "Sweeping around direction wheel at full speed"
+for i in {0..359}
+do
+    echo DRIVE $i 4096 > /dev/udp/0.0.0.0/8080
+    sleep 0.1
+done
+
+echo DRIVE 0 0 > /dev/udp/0.0.0.0/8080
+
+echo "Drive Test Complete"
+echo ""
+sleep 1
+echo "-- Testing Pan system -- "
+
+echo "Sweeping horizontal servo"
+for i in {0..180}
+do
+    echo PAN $i 90 > /dev/udp/0.0.0.0/8080
+    sleep 0.1
+done
+
+for i in {180..0}
+do
+    echo PAN $i 90 > /dev/udp/0.0.0.0/8080
+    sleep 0.1
+done
+echo PAN 90 90 > /dev/udp/0.0.0.0/8080
+
+echo "Sweeping Vertical servo"
+for i in {0..180}
+do
+    echo PAN 90 $i > /dev/udp/0.0.0.0/8080
+    sleep 0.1
+done
+for i in {180..0}
+do
+    echo PAN 90 $i > /dev/udp/0.0.0.0/8080
+    sleep 0.1
+done
+echo PAN 90 90 > /dev/udp/0.0.0.0/8080
+
+
+echo "Initiating mechanical stress test (i.e. Trying to break the robot)..."
+echo "--WARNING--"
+sleep 0.5
+echo "This test will subject the robot to tremendous mechanical forces"
+sleep 0.5
+echo "The test will begin in"
+
+for i in {1..10}
+do
+    echo $i
+    sleep 1
+done
+
+for i in {1..50}
+do
+    echo DRIVE 0 4096 > /dev/udp/0.0.0.0/8080
+    echo PAN 0 180 > /dev/udp/0.0.0.0/8080
+    sleep 0.25
+    echo DRIVE 180 4096 > /dev/udp/0.0.0.0/8080
+    echo PAN 180 0 > /dev/udp/0.0.0.0/8080
+    sleep 0.25
+done
+
+sleep 1
+
+# Reset and shutdown
+echo "Test complete. Shutting down..."
+echo DRIVE 0 0 > /dev/udp/0.0.0.0/8080
+echo PAN 90 90 > /dev/udp/0.0.0.0/8080
+
+exit

@@ -249,6 +249,7 @@ char** split_cmd(char* cmd, int* numCmds){
       return arr;
     
     arr[i] = pch;
+
     pch = strtok(NULL, " ");
     i++;
   }
