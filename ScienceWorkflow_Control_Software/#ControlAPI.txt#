@@ -44,6 +44,8 @@ Commands that are not listed in the API are ignored.
     -float: A 32-bit floating point number
     -double: A 64-bit floating point number
 
+    A sensor may return multiple data points. For example, a gyroscope may return 3 floating point numbers 
+
     An example response would be:
 
     accelorometer 0 ushort
@@ -55,4 +57,4 @@ Commands that are not listed in the API are ignored.
   SENSE_GET [sense_id]
     Causes the machine to send a sensor sample back to the client machine, where sense_id is the sensor's id
     code listed by SENSE_LIST. The return value will be of the form listed by SENSE_LIST. For example, if a return type
-    ushort is listed, the SENSE_GET response for that sensor will be a 2 byte unsigned integer.
+    ushort is listed, the SENSE_GET response for that sensor will be 2 bytes in length.
