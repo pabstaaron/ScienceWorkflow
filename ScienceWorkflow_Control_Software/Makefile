@@ -3,7 +3,9 @@ C_FLAGS = -g -o
 RM = rm
 PYTHON = /usr/include/python2.7 -lpython2.7
 CONTROL = ControlServer.c
+CONTROLMOCK = ControlServerMock.c
 OUT = ControlServer
+OUTMOCK = ControlServerMock
 OBJDUMP = objdump -d
 DUMP_FILE = ControlServer.a
 
@@ -11,9 +13,13 @@ DUMP_FILE = ControlServer.a
 controlserver:
 	$(CC) $(C_FLAGS) $(OUT) $(CONTROL) -I $(PYTHON)
 
-all: controlserver
+controlservermock:
+	$(CC) $(C_FLAGS) $(OUTMOCK) $(CONTROLMOCK)
+
+all: controlserver controlservermock
 
 default: controlserver
+	 controlservermock
 
 clean:
 	$(RM) $(OUT)
