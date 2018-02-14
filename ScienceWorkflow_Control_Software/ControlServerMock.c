@@ -16,9 +16,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "dictionary.h"
+#include <time.h>
 
 #define BUFSIZE 1024
-#define PORTNO 8080  // Command listening port
+#define PORTNO 9090  // Command listening port
 
 // Sensor type associations
 #define USHORT 0
@@ -66,43 +67,6 @@ void error(char* msg){
 
 int main(int argc, char** argv){
   printf("Starting ScienceWorkflow Control Server\n");
-  
-  // Start up the python interpreter 
-  //Py_Initialize();
-
-  //PyObject* p_name, *pModule;
-  
-  //p_name = PyString_FromString(adafruit_pwm_lib);
-  //pModule = PyImport_Import(p_name);
-  //Py_DECREF(p_name); // We're done with p_name, so release it.
-
-  //if(pModule == NULL){
-  //error("Module undefined! Is the PCA9685 library on the Python path?");
-  //}
-
-  /* PyObject* init = PyObject_GetAttrString(pModule, "__init__"); */
-
-  /* if(init == NULL) */
-  /*   error("Couldn't find python defintition for function init."); */
-
-  // Make an instance of the PCA9685 module
-  //PyObject* PCA9685 = PyObject_GetAttrString(pModule, "PCA9685");
-  //if(!PyCallable_Check(PCA9685))
-  //  error("Can't call PCA9685");
-  
-  //PyObject* instance = PyObject_CallObject(PCA9685, NULL);
-  //if(instance == NULL)
-  //  error("Could not instantiate PCA9685 module!");
-  
-  // Set up Python function refs
-  /*soft_reset = PyObject_GetAttrString(pModule, soft_reset_name);
-  set_pwm_freq = PyObject_GetAttrString(pModule, set_pwm_freq_name);
-  set_pwm = PyObject_GetAttrString(pModule, set_pwm_name);
-  set_all_pwm = PyObject_GetAttrString(pModule, set_all_pwm_name);
-
-  // Initilize all PWM channels
-  call_set_all_pwm(0, 0);
-  */
   
   // Build sensor dictionary
   sensors = calloc(256, sizeof(sensor)); // Set up a sensor data structure with a direct id mapping
@@ -219,7 +183,7 @@ void handleCommand(char* cmd, struct sockaddr_in client){
   
   if(!strcmp(scmd[0], "DRIVE")){ // If we've received a drive command
     if(*numargs != 3){ // Ensure instruction is of the expected format
-      printf("Excpected two arguments for DRIVE command, got %d", *numargs-1);
+      printf("Excpected two arguments for DRIVE command, got %d\n", *numargs-1);
       return;
     }
     short* args = parse_dir_cmds(scmd[1], scmd[2]);
@@ -228,7 +192,7 @@ void handleCommand(char* cmd, struct sockaddr_in client){
   }
   else if(!strcmp(scmd[0], "PAN")){ // If we've received a PAN command
     if(*numargs != 3){
-      printf("Excpected two arguments for PAN command, got %d", *numargs-1);
+      printf("Excpected two arguments for PAN command, got %d\n", *numargs-1);
       return;
     }
     short* args = parse_dir_cmds(scmd[1], scmd[2]);
@@ -241,7 +205,7 @@ void handleCommand(char* cmd, struct sockaddr_in client){
   }
   else if(!strcmp(scmd[0], "SENSE_GET")){ // If we've received a SENSE_GET command
     if(*numargs != 2){
-      printf("Excpected one arguments for SENSE_GET command, got %d", *numargs-1);
+      printf("Excpected one arguments for SENSE_GET command, got %d\n", *numargs-1);
       return;
     }
     sense_get(atoi(scmd[1]), client);
@@ -347,7 +311,13 @@ void sense_get(char id, struct sockaddr_in client){
 
   if(sensors[id].name != NULL){
     // Just send some garbage data for now
-    char* data = malloc(2);
+    //char* data = malloc(2);
+    srand(time(0));
+    short num = rand();
+
+    char* data = malloc(4);
+    sprintf(data, "%d", num);
+    
     send_udp(client, data);
     free(data);
   }
@@ -361,62 +331,3 @@ int send_udp(struct sockaddr_in client, char* buf2){
   return sendto(sockfd, buf2, strlen(buf2), 0, (struct sockaddr*) &client, len);
 }
 
-// Adafruit PWM Wrappers
-// https://learn.adafruit.com/adafruit-16-channel-servo-driver-with-raspberry-pi/library-reference
-
-/*
- * Sets the PWM Frequency.
- * freq: an integer value, in Hz, from 40 to 1000 
- */
-/*void call_set_pwm_freq(int freq){
-  PyObject *pargs = PyTuple_New(1);
-  PyObject *pint = PyInt_FromLong(freq);
-  PyTuple_SetItem(pargs, 0, pint);
-
-  PyObject_CallObject(set_pwm_freq, pargs);
-
-  // Cleanup
-  Py_DECREF(pargs);
-  Py_DECREF(pint);
-  }*/
-
-/*
- * Sets the on/off interval on channel.
- * channel: The channel to be updated. An integer between 0 and 15
- * on: The count value to activate the pulse. An integer between 0 and 4095.
- * off: The count value to deactivate the pulse. An integer between 0 and 4095
- */
-/*void call_set_pwm(int channel, int on, int off){
-  PyObject *pargs = PyTuple_New(3);
-
-  PyObject *pchannel = PyInt_FromLong(channel);
-  PyObject *pon = PyInt_FromLong(on);
-  PyObject *poff = PyInt_FromLong(off);
-
-  PyTuple_SetItem(pargs, 0, pchannel);
-  PyTuple_SetItem(pargs, 1, pon);
-  PyTuple_SetItem(pargs, 2, poff);
-
-  PyObject_CallObject(set_pwm, pargs);
-
-  Py_DECREF(pargs);
-  Py_DECREF(pchannel);
-  Py_DECREF(pon);
-  Py_DECREF(poff);
-  }*/
-
-/*void call_set_all_pwm(int on, int off){
-  PyObject *pargs = PyTuple_New(2);
-
-  PyObject *pon = PyInt_FromLong(on);
-  PyObject *poff = PyInt_FromLong(off);
-
-  PyTuple_SetItem(pargs, 0, pon);
-  PyTuple_SetItem(pargs, 1, poff);
-
-  PyObject_CallObject(set_pwm, pargs);
-
-  Py_DECREF(pargs);
-  Py_DECREF(pon);
-  Py_DECREF(poff);
-  }*/
