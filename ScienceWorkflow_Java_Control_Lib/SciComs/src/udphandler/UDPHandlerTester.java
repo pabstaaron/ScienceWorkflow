@@ -11,16 +11,18 @@ public class UDPHandlerTester {
 		handler.sendReceive("SENSE_GET 1", new Handler());
 		handler.send("PAN 90 90");
 		
-		for(int i = 0; i < Short.MAX_VALUE; i++){
+		/*for(int i = 0; i < Short.MAX_VALUE; i++){
 			while(!handler.send("DRIVE 0 " + Integer.toString(i)));
-		}
+		}*/
 		
 		try {
-			handler.kill();
+			Thread.sleep(100);
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		
+		handler.kill();
 	}
 
 	

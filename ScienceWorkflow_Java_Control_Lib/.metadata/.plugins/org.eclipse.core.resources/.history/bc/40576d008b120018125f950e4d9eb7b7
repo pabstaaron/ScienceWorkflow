@@ -1,0 +1,83 @@
+package tests;
+
+import static org.junit.Assert.*;
+
+import org.junit.Test;
+
+import scicoms.RingBuffer;
+import scicoms.SampleType;
+
+public class UnitTests {
+
+	@Test
+	public void ringBufferTest1() {
+		RingBuffer<Integer> buff = new RingBuffer<Integer>(100);
+		
+		for(int i = 0; i < 100; i++){
+			buff.add(i);
+		}
+		
+		Integer compTo = 0;
+		for(Integer i : buff.getData()){
+			assertEquals(compTo, i);
+			compTo++;
+		}
+	}
+	
+	@Test
+	public void ringBufferTest2() {
+		RingBuffer<Integer> buff = new RingBuffer<Integer>(100);
+		
+		for(int i = 0; i < 100; i++){
+			buff.add(i);
+		}
+		
+		Integer compTo = 0;
+		for(Integer i : buff.getData()){
+			assertEquals(compTo, i);
+			compTo++;
+		}
+		
+		buff.add(69);
+		
+		compTo = 1;
+		for(Integer i : buff.getData()){
+			assertEquals(compTo, i);
+			
+			if(compTo == 99)
+				compTo = 69;
+			else
+				compTo++;
+		}
+	}
+	
+	@Test
+	public void sampleTypeTest1(){
+		SampleType t = new SampleType("ushort");
+		assertTrue(t.parse("0") instanceof Integer);
+	}
+
+	@Test
+	public void sampleTypeTest2(){
+		SampleType t = new SampleType("short");
+		assertTrue(t.parse("0") instanceof Short);
+	}
+	
+	@Test
+	public void sampleTypeTest3(){
+		SampleType t = new SampleType("uint");
+		assertTrue(t.parse("0") instanceof Long);
+	}
+	
+	@Test
+	public void sampleTypeTest4(){
+		SampleType t = new SampleType("int");
+		assertTrue(t.parse("0") instanceof Integer);
+	}
+	
+	@Test
+	public void sampleTypeTest3(){
+		SampleType t = new SampleType("short");
+		assertTrue(t.parse("0") instanceof Short);
+	}
+}

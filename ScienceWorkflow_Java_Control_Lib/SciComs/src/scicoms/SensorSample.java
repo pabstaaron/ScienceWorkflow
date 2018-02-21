@@ -24,4 +24,9 @@ public class SensorSample {
 	public String toString(){
 		return sampleString;
 	}
+
+	@Override
+	public boolean equals(Object o){
+		return this.value.equals(((SensorSample)o).value);
+	}
 }

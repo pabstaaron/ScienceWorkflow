@@ -28,7 +28,7 @@ public class UDPHandler {
 	
 	private BlockingQueue<Runnable> netQue; // Holds Pending UDP transactions
 	
-	private Thread tConsume;
+	private volatile Thread tConsume;
 	
 	/**
 	 * Creates a new UDPHandler object pointed at addr:portno.
@@ -42,8 +42,25 @@ public class UDPHandler {
 		netQue = new LinkedBlockingQueue<Runnable>(MAX_PENDING);
 		
 		// Fire up consumer
+		start();
+	}
+	
+	/**
+	 * Starts the consumer thread
+	 */
+	public void start(){
 		tConsume = new Thread(new Consumer());
 		tConsume.start();
+	}
+	
+	/**
+	 * Stops the consumer thread and flushes the job queue
+	 */
+	public void kill(){
+		Thread copy = tConsume;
+		tConsume = null;
+		netQue.clear();
+		copy.interrupt();
 	}
 	
 	/* Public accessors/mutators */
@@ -75,32 +92,6 @@ public class UDPHandler {
 	 * @param port
 	 */
 	public void setPort(int port) { this.port = port; }
-	
-	/**
-	 * Pauses the UDP pipeline
-	 * 
-	 * @throws InterruptedException
-	 */
-	public void pause() throws InterruptedException{
-		tConsume.wait();
-	}
-	
-	/**
-	 * Stops the UDP pipeline and flushes all pending UDP transactions
-	 * 
-	 * @throws InterruptedException
-	 */
-	public void kill() throws InterruptedException{
-		pause();
-		netQue.clear();
-	}
-	
-	/**
-	 * Starts the UDP pipeline
-	 */
-	public void start(){
-		tConsume.notify();
-	}
 	
 	/**
 	 * Sends UDP data represented as a String to the remote host.
@@ -172,10 +163,18 @@ public class UDPHandler {
 	 */
 	private String conditionData(byte[] data){
 		String str = "";
+		boolean hadNull = false;
+		
 		for(byte b : data){
 			str = str.concat(String.valueOf((char)b));
-			if(b == 0)
+			if(b == 0){
+				hadNull = true;
 				break;
+			}
+		}
+		
+		if(!hadNull){
+			str = str.concat("\0000");
 		}
 		
 		return str;
@@ -218,7 +217,8 @@ public class UDPHandler {
 				sock.close();
 				
 				// Call the user response handler
-				handler.handler(conditionData(recvBuff));
+				handler.handler(new String(recvBuff, "UTF-8"));
+				//handler.handler(new String(recvBuff));
 				
 			} catch (SocketException e) {
 				e.printStackTrace();

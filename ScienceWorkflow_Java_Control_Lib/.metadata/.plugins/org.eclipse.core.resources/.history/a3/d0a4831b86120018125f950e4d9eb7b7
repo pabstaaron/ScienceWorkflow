@@ -1,0 +1,16 @@
+package tests;
+
+import static org.junit.Assert.*;
+
+import org.junit.Test;
+
+import scicoms.RingBuffer;
+
+public class UnitTests {
+
+	@Test
+	public void ringBufferTest1() {
+		RingBuffer<Integer> buff = new RingBuffer<Integer>(100);
+	}
+
+}

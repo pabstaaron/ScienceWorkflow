@@ -63,6 +63,8 @@ public class RingBuffer<E> {
 	 * @return The most recent element added to the buffer.
 	 */
 	public E getNewest(){
+		if(structure.isEmpty())
+			return null;
 		return structure.getLast();
 	}
 	
@@ -70,7 +72,7 @@ public class RingBuffer<E> {
 	public String toString(){
 		String str = "";
 		for(E value : structure){
-			str = str.concat(value.toString());
+			str = str.concat(value.toString() + "\n");
 		}
 		return str;
 	}

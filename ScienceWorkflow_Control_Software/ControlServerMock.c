@@ -295,7 +295,7 @@ void sense_list(struct sockaddr_in client){
   printf("Received sense_list command\n");
 
   char* list = build_sensor_list();
-  printf("%s\n", list);
+  //printf("%s\n", list);
 
   int bytesSent = send_udp(client, list);
   printf("Bytes sent: %d\n", bytesSent);
@@ -315,7 +315,7 @@ void sense_get(char id, struct sockaddr_in client){
     srand(time(0));
     short num = rand();
 
-    char* data = malloc(4);
+    char* data = malloc(512);
     sprintf(data, "%d", num);
     
     send_udp(client, data);

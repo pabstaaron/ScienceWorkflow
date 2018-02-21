@@ -42,6 +42,7 @@ public class SampleType {
 			case "long": return Long.parseLong(val);
 			case "float": return Float.parseFloat(val);
 			case "double": return Double.parseDouble(val);
+			case "int": return Integer.parseInt(val);
 			}
 		}
 		
