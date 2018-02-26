@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?><testrun name="UnitTests" project="SciComs" tests="19" started="19" failures="0" errors="0" ignored="0">
+  <testsuite name="tests.UnitTests" time="0.814">
+    <testcase name="robotTest1" classname="tests.UnitTests" time="0.0"/>
+    <testcase name="robotTest2" classname="tests.UnitTests" time="0.801"/>
+    <testcase name="sensorSampleTest1" classname="tests.UnitTests" time="0.0"/>
+    <testcase name="sensorSampleTest2" classname="tests.UnitTests" time="0.001"/>
+    <testcase name="sampleTypeTest1" classname="tests.UnitTests" time="0.0"/>
+    <testcase name="sampleTypeTest2" classname="tests.UnitTests" time="0.0"/>
+    <testcase name="sampleTypeTest3" classname="tests.UnitTests" time="0.0"/>
+    <testcase name="sampleTypeTest4" classname="tests.UnitTests" time="0.0"/>
+    <testcase name="sampleTypeTest5" classname="tests.UnitTests" time="0.0"/>
+    <testcase name="sampleTypeTest6" classname="tests.UnitTests" time="0.0"/>
+    <testcase name="sampleTypeTest7" classname="tests.UnitTests" time="0.0"/>
+    <testcase name="sampleTypeTest8" classname="tests.UnitTests" time="0.0"/>
+    <testcase name="sampleTypeTest9" classname="tests.UnitTests" time="0.001"/>
+    <testcase name="sensorTest1" classname="tests.UnitTests" time="0.0"/>
+    <testcase name="sensorTest2" classname="tests.UnitTests" time="0.0"/>
+    <testcase name="sensorTest3" classname="tests.UnitTests" time="0.004"/>
+    <testcase name="sensorTest4" classname="tests.UnitTests" time="0.005"/>
+    <testcase name="ringBufferTest1" classname="tests.UnitTests" time="0.0"/>
+    <testcase name="ringBufferTest2" classname="tests.UnitTests" time="0.001"/>
+  </testsuite>
+</testrun>

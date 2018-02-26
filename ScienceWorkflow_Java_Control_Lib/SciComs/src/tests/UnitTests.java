@@ -216,5 +216,7 @@ public class UnitTests {
 		assertTrue(arr.length > 0);
 		
 		assertTrue(arr[0].getMostRecent() != null);
+		
+		r.kill();
 	}
 }

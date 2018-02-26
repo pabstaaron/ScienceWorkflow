@@ -2,6 +2,7 @@ package scicoms;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -54,6 +55,8 @@ public class Robot {
 			public void actionPerformed(ActionEvent e) {
 				// Iterate over sensor list and call sense get for each one
 				updateAll();
+//				System.out.println("Tick");
+				
 			}
 		};
 		
@@ -87,6 +90,7 @@ public class Robot {
 	}
 	
 	private void senseGet(Sensor sensor){
+//		System.out.println("get");
 		rcvPending++;
 		handler.sendReceive("SENSE_GET " + sensor.getId(), new ReceiveSensorSample());
 	}
@@ -95,6 +99,7 @@ public class Robot {
 	 * Calls senseGet on all known sensors
 	 */
 	private void updateAll(){
+//		System.out.println(sensors.size());
 		for(Sensor s : sensors)
 			senseGet(s);
 	}
@@ -143,6 +148,11 @@ public class Robot {
 		return sample; // XXX I don't think this is thread safe........
 	}
 	
+	public void kill(){
+		updateTimer.stop();
+		handler.kill();
+	}
+	
 	/**
 	 * Call back for when a sense_list response comes in 
 	 */
@@ -152,14 +162,23 @@ public class Robot {
 			sensorLock.lock();
 			sensors.clear();
 			for(String s : response.split("\n")){
-				//System.out.println(s + " : " + s.length());
-				if(s.matches("[a-z0-9A-Z]")) // Sometimes we can pick up malformed ASCII, so we need to make sure the line is good
+				if(s.split(" ").length > 1 && s.split(" ").length < 10) // Sometimes we can pick up malformed ASCII, so we need to make sure the line is good
 					sensors.add(new Sensor(s, histSize));
 			}
 			sensorLock.unlock();
 			rcvPending--;
 		}
 	}
+	
+	
+	
+//	private void dumpBytes(String s){
+//		byte[] arr = s.getBytes();
+//		for(int i = 0; i < arr.length; i++){
+//			System.out.print(arr[i] + ", ");
+//		}
+//		System.out.println("");
+//	}
 	
 	/**
 	 * Callback for when a sense_get response comes in
@@ -168,6 +187,8 @@ public class Robot {
 
 		@Override
 		public void handler(String response) {
+//			dumpBytes(response);
+//			System.out.println(response);
 			sensorLock.lock();
 			sensors.get(sensorIndex).addSample(response);
 			if(sensorIndex < sensors.size()-1)

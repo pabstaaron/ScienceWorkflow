@@ -1,11 +1,13 @@
 package udphandler;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -57,10 +59,8 @@ public class UDPHandler {
 	 * Stops the consumer thread and flushes the job queue
 	 */
 	public void kill(){
-		Thread copy = tConsume;
+		tConsume.interrupt();
 		tConsume = null;
-		netQue.clear();
-		copy.interrupt();
 	}
 	
 	/* Public accessors/mutators */
@@ -180,6 +180,29 @@ public class UDPHandler {
 		return str;
 	}
 	
+	private String trimStr(byte[] old){
+		ArrayList<Byte> good = new ArrayList<Byte>();
+		
+		for(int i = 0; i < old.length; i++){
+			if(old[i] == 0)
+				break;
+			good.add(old[i]);
+		}
+	
+		byte[] goodArr = new byte[good.size()];
+		
+		for(int i = 0; i < good.size(); i++)
+			goodArr[i] = good.get(i);
+		
+		try {
+			//return new String(goodArr, "UTF-8");
+			return new String(goodArr, 0, goodArr.length, "UTF-8");
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+			return null;
+		}
+	}
+	
 	/**
 	 * Contains the procedure for sending data over UDP and waiting for a response
 	 */
@@ -217,8 +240,7 @@ public class UDPHandler {
 				sock.close();
 				
 				// Call the user response handler
-				handler.handler(new String(recvBuff, "UTF-8"));
-				//handler.handler(new String(recvBuff));
+				handler.handler(new String(recv.getData(), 0, recv.getLength(), "UTF-8"));
 				
 			} catch (SocketException e) {
 				e.printStackTrace();

@@ -9,7 +9,7 @@ public class UDPHandlerTester {
 		handler.sendReceive("SENSE_LIST", new Handler());
 		handler.sendReceive("SENSE_GET 0", new Handler());
 		handler.sendReceive("SENSE_GET 1", new Handler());
-		handler.send("PAN 90 90");
+		//handler.send("PAN 90 90");
 		
 		/*for(int i = 0; i < Short.MAX_VALUE; i++){
 			while(!handler.send("DRIVE 0 " + Integer.toString(i)));
@@ -23,6 +23,7 @@ public class UDPHandlerTester {
 		}
 		
 		handler.kill();
+		return;
 	}
 
 	

@@ -35,6 +35,7 @@ void sense_list(struct sockaddr_in client);
 void sense_get(char id, struct sockaddr_in client);
 void build_dummy_sensors();
 int send_udp(struct sockaddr_in client, char* buf2);
+char* trimStr(char* str);
 /*void call_set_pwm_freq(int freq);
 void call_set_pwm(int channel, int on, int off);
 void call_set_all_pwm(int on, int off);*/
@@ -119,6 +120,31 @@ int main(int argc, char** argv){
   }
 
   // Py_Finalize();
+}
+
+char* grow(char *str){
+  char* new = malloc(strlen(str) + 1);
+  for(int i = 0; i < strlen(str); i++)
+    new[i] = str[i];
+
+  return new;
+}
+
+/**
+ * Trims excess null-terminators from a string
+ */
+char* trimStr(char* str){
+  char* new = malloc(1); // Starting array
+  int i = 0;
+  while(1){
+    new[i] = str[i];
+    if(str[i] == 0)
+      break;
+    new = grow(new);
+    i++;
+  }
+
+  return new;
 }
 
 void build_dummy_sensors(){
@@ -315,8 +341,12 @@ void sense_get(char id, struct sockaddr_in client){
     srand(time(0));
     short num = rand();
 
-    char* data = malloc(512);
+    char* data = malloc(15);
     sprintf(data, "%d", num);
+
+    data = trimStr(data);
+
+    printf("Sent sample %s\n", data);
     
     send_udp(client, data);
     free(data);
