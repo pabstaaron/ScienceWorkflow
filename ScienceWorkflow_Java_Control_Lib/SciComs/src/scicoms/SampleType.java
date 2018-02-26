@@ -12,6 +12,11 @@ import java.util.Collection;
 public class SampleType {
 	private String[] types;
 	
+	/**
+	 * Creates a new SampleType object from a valid sensor type listing as defined in the ControlAPI
+	 * 
+	 * @param datType
+	 */
 	public SampleType(String datType) {
 		types = datType.split(" ");
 	}

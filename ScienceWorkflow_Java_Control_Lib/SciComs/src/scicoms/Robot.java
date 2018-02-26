@@ -39,6 +39,15 @@ public class Robot {
 	
 	private int rcvPending;
 	
+	
+	/**
+	 * Initilizes a connection to the science workflow robot at addr:portno
+	 * 
+	 * @param addr - The ip address of the robot
+	 * @param portno - The port number of the control service
+	 * @param updateInterval - The amount of time to wait between sensor updates
+	 * @param histSize - The number of sensor samples to maintain
+	 */
 	public Robot(String addr, int portno, int updateInterval, int histSize){
 		handler = new UDPHandler(addr, portno);
 		sensors = new ArrayList<Sensor>();
